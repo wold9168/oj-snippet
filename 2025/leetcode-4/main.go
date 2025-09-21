@@ -14,7 +14,7 @@ func minright(nums1 []int, nums2 []int, p1 int) int {
 	p2 := fetchp2(p1, len(nums1)+len(nums2))
 	if (p1 == len(nums1)-1 && len(nums2) != 0) || p1 == -1 {
 		return nextele(nums2, p2)
-	} else if (p2 == len(nums2)-1 && len(nums1) != 0) || p2 == -1 {
+	} else if (p2 == len(nums2)-1 && len(nums1) != 0) || (p2 == -1 && len(nums2) == 0) {
 		return nextele(nums1, p1)
 	} else {
 		return min(nextele(nums1, p1), nextele(nums2, p2))
@@ -61,7 +61,10 @@ func findMedianSortedArrays(nums1 []int, nums2 []int) float64 {
 		}
 		p1 = getmid(l1, r1)
 	}
-
+	p2 := fetchp2(p1, len(nums1)+len(nums2))
+	if p1 == 0 && len(nums2) > 0 && p2 != -1 && nextele(nums2, p2) < nums1[p1] && len(nums1) < len(nums2) {
+		p1 = -1
+	}
 	if (len(nums1)+len(nums2))%2 == 0 {
 		a := maxleft(nums1, nums2, p1)
 		b := minright(nums1, nums2, p1)
@@ -72,7 +75,7 @@ func findMedianSortedArrays(nums1 []int, nums2 []int) float64 {
 }
 
 func main() {
-	var n1 []int = []int{1, 2}
-	var n2 []int = []int{3, 4}
+	var n1 []int = []int{2, 3, 4}
+	var n2 []int = []int{1}
 	log.Printf("%v", findMedianSortedArrays(n1, n2))
 }
