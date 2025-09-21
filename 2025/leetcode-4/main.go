@@ -1,76 +1,122 @@
 package main
 
-import "log"
+import (
+	"errors"
+	"log"
+)
 
-func nextele(nums []int, p int) int {
-	if p+1 >= len(nums) {
-		return nums[len(nums)-1]
+var p1chosen int
+var N1 int
+var N2 int
+
+func fetchp2chosen() int {
+	// [1 2] 3
+	// [1 2] 3 4
+	return (N1+N2+1)/2 - p1chosen
+}
+
+func fetchp1() int {
+	return p1chosen - 1
+}
+
+func fetchp2() int {
+	return fetchp2chosen() - 1
+}
+
+func weak_get(nums []int, pos int) (int, error) {
+	if pos < 0 || pos >= len(nums) {
+		return 0, errors.New("Exceed the range.")
 	} else {
-		return nums[p+1]
+		return nums[pos], nil
 	}
+
 }
 
-func minright(nums1 []int, nums2 []int, p1 int) int {
-	p2 := fetchp2(p1, len(nums1)+len(nums2))
-	if (p1 == len(nums1)-1 && len(nums2) != 0) || p1 == -1 {
-		return nextele(nums2, p2)
-	} else if (p2 == len(nums2)-1 && len(nums1) != 0) || (p2 == -1 && len(nums2) == 0) {
-		return nextele(nums1, p1)
+func maxleft(nums1 []int, nums2 []int) (int, error) {
+	left1, err1 := weak_get(nums1, fetchp1())
+	left2, err2 := weak_get(nums2, fetchp2())
+	if err1 != nil {
+		if err2 != nil {
+			return 0, errors.New("No left")
+		} else {
+			return left2, nil
+		}
+	} else if err2 != nil {
+		return left1, nil
 	} else {
-		return min(nextele(nums1, p1), nextele(nums2, p2))
+		return max(left1, left2), nil
 	}
 }
 
-func maxleft(nums1 []int, nums2 []int, p1 int) int {
-	p2 := fetchp2(p1, len(nums1)+len(nums2))
-	if len(nums1) <= 0 || p1 == -1 {
-		return nums2[p2]
-	} else if len(nums2) <= 0 || p2 == -1 {
-		return nums1[p1]
-	} else if len(nums1) > 0 && len(nums2) > 0 {
-		return max(nums1[p1], nums2[p2])
+func minright(nums1 []int, nums2 []int) (int, error) {
+	right1, err1 := weak_get(nums1, fetchp1()+1)
+	right2, err2 := weak_get(nums2, fetchp2()+1)
+	if err1 != nil {
+		if err2 != nil {
+			return 0, errors.New("No right")
+		} else {
+			return right2, nil
+		}
+	} else if err2 != nil {
+		return right1, nil
+	} else {
+		return min(right1, right2), nil
 	}
-	return -1
 }
 
-func judge(nums1 []int, nums2 []int, p1 int) bool {
-	return !(maxleft(nums1, nums2, p1) <= minright(nums1, nums2, p1))
-}
-
-func fetchp2(p1, Nsum int) int {
-	return (Nsum+1)/2 - p1 - 2 //grant nums1[0,p1] and nums2[0,p2] include leftmid
-}
-
-func getmid(l, r int) int {
-	return (l + r) / 2
+func found(nums1 []int, nums2 []int) bool {
+	ml, errl := maxleft(nums1, nums2)
+	mr, errr := minright(nums1, nums2)
+	if errl != nil || errr != nil {
+		return false
+	} else {
+		return ml <= mr
+	}
 }
 
 func findMedianSortedArrays(nums1 []int, nums2 []int) float64 {
-	N1 := len(nums1)
-	l1 := 0
-	r1 := N1 - 1
-	p1 := getmid(l1, r1)
+	if len(nums1) > len(nums2) { //grant N1<=N2
+		return findMedianSortedArrays(nums2, nums1)
+	}
+	N1 = len(nums1)
+	N2 = len(nums2)
 	if N1 == 0 {
-		p1 = -1
+		p1chosen = 0
 	}
-	for judge(nums1, nums2, p1) && l1 < r1 {
-		if p1 != -1 && nums1[p1] <= minright(nums1, nums2, p1) {
-			l1 = p1 + 1
-		} else {
-			r1 = p1
+	L := 0
+	R := N1
+	p1chosen = (L + R) / 2
+	for !found(nums1, nums2) && L < R {
+		left1, err1 := weak_get(nums1, fetchp1())
+		if err1 != nil {
+			if fetchp1() < 0 {
+				L = p1chosen + 1
+			} else {
+				R = p1chosen
+			}
+			p1chosen = (L + R) / 2
+			continue
 		}
-		p1 = getmid(l1, r1)
+		mr, errr := minright(nums1, nums2)
+		if errr != nil {
+			R = p1chosen
+			p1chosen = (L + R) / 2
+			continue
+		}
+		if left1 <= mr {
+			L = p1chosen + 1 // Right
+		} else {
+			R = p1chosen // Left
+		}
+		p1chosen = (L + R) / 2
 	}
-	p2 := fetchp2(p1, len(nums1)+len(nums2))
-	if p1 == 0 && len(nums2) > 0 && p2 != -1 && nextele(nums2, p2) < nums1[p1] && len(nums1) < len(nums2) {
-		p1 = -1
-	}
-	if (len(nums1)+len(nums2))%2 == 0 {
-		a := maxleft(nums1, nums2, p1)
-		b := minright(nums1, nums2, p1)
-		return float64(a+b) / 2.0
+	if (N1+N2)%2 == 0 {
+		ml, _ := maxleft(nums1, nums2)
+		mr, _ := minright(nums1, nums2)
+		return float64(ml+mr) / 2.0
 	} else {
-		return float64(maxleft(nums1, nums2, p1))
+		ml, _ := maxleft(nums1, nums2)
+		return float64(ml)
 	}
 }
 
