@@ -1,0 +1,170 @@
+#!/usr/bin/env bash
+#
+# oj.sh — OJ 刷题项目模板管理脚本
+#
+# 子命令:
+#   help                显示帮助信息
+#   version             显示版本号
+#   create <题目编号>   在「当前年份」目录下创建对应题目编号的项目目录,
+#                       内容复制自 _template/<语言> (默认 cpp),
+#                       stdout 仅输出所创建目录的 realpath, 报错走 stderr
+
+set -euo pipefail
+
+SCRIPT_NAME="$(basename "$0")"
+SCRIPT_VERSION="0.1.0"
+
+# 脚本所在目录;模板根目录 _template 与之相对
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
+TEMPLATE_ROOT="$SCRIPT_DIR/_template"
+
+usage() {
+    cat <<EOF
+用法: ${SCRIPT_NAME} <command> [args...]
+
+子命令:
+  help                         显示本帮助信息
+  version                      显示版本号
+  create <题目编号> [--lang <语言>]
+                               在 <当前年份>/<题目编号>/ 下创建项目目录,
+                               并从 _template/<语言>/ 复制模板内容。
+                               默认语言为 cpp。
+                               成功时 stdout 仅输出所创建目录的 realpath,
+                               其他信息与错误均输出到 stderr。
+
+选项:
+  --lang <语言>                指定模板语言。_template/ 下任意一个子目录
+                               都可以作为语言名使用。
+
+示例:
+  ${SCRIPT_NAME} create 1001
+  ${SCRIPT_NAME} create 1002 --lang python
+EOF
+}
+
+show_version() {
+    echo "$SCRIPT_NAME $SCRIPT_VERSION"
+}
+
+# 列出 _template/ 下所有可用的模板语言(子目录名)
+list_langs() {
+    local d
+    for d in "$TEMPLATE_ROOT"/*/; do
+        [[ -d "$d" ]] || continue
+        basename "$d"
+    done | sort
+}
+
+lang_exists() {
+    [[ -d "$TEMPLATE_ROOT/$1" ]]
+}
+
+cmd_create() {
+    local id=""
+    local lang="cpp"
+
+    while (($# > 0)); do
+        case "$1" in
+            --lang)
+                if (($# < 2)); then
+                    echo "错误: --lang 需要一个参数" >&2
+                    exit 1
+                fi
+                lang="$2"
+                shift 2
+                ;;
+            --lang=*)
+                lang="${1#*=}"
+                shift
+                ;;
+            -*)
+                echo "错误: 未知选项 '$1'" >&2
+                exit 1
+                ;;
+            *)
+                if [[ -n "$id" ]]; then
+                    echo "错误: 多余的参数 '$1'" >&2
+                    exit 1
+                fi
+                id="$1"
+                shift
+                ;;
+        esac
+    done
+
+    if [[ -z "$id" ]]; then
+        echo "错误: 缺少题目编号" >&2
+        echo "用法: ${SCRIPT_NAME} create <题目编号> [--lang <语言>]" >&2
+        exit 1
+    fi
+
+    if [[ "$id" == *[/[:space:]]* ]]; then
+        echo "错误: 题目编号不能包含 '/' 或空白字符: '$id'" >&2
+        exit 1
+    fi
+
+    if ! lang_exists "$lang"; then
+        echo "错误: 语言 '$lang' 没有对应的模板 (${TEMPLATE_ROOT}/$lang 不存在)" >&2
+        local available
+        available="$(list_langs || true)"
+        if [[ -n "$available" ]]; then
+            echo "可用语言: $(echo "$available" | tr '\n' ' ')" >&2
+        else
+            echo "提示: ${TEMPLATE_ROOT} 下还没有任何模板" >&2
+        fi
+        exit 1
+    fi
+
+    local year
+    year="$(date +%Y)"
+
+    local target="$year/$id"
+    if [[ -e "$target" ]]; then
+        echo "错误: '$target' 已存在" >&2
+        exit 1
+    fi
+
+    mkdir -p "$target"
+    cp -R "$TEMPLATE_ROOT/$lang/." "$target/"
+
+    # 所创建目录的 realpath (优先 realpath 命令, 回退 pwd -P)
+    local abs_target
+    if command -v realpath >/dev/null 2>&1; then
+        abs_target="$(realpath "$target")"
+    else
+        abs_target="$(cd "$target" && pwd -P)"
+    fi
+
+    echo "已创建: $target (模板: $lang)" >&2
+    echo "模板来源: ${TEMPLATE_ROOT}/$lang" >&2
+    echo "$abs_target"
+}
+
+main() {
+    if (($# == 0)); then
+        usage
+        exit 0
+    fi
+
+    local cmd="$1"
+    shift
+
+    case "$cmd" in
+        help|-h|--help)
+            usage
+            ;;
+        version|-V|--version)
+            show_version
+            ;;
+        create)
+            cmd_create "$@"
+            ;;
+        *)
+            echo "错误: 未知命令 '$cmd'" >&2
+            usage >&2
+            exit 1
+            ;;
+    esac
+}
+
+main "$@"
